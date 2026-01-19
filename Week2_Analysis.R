@@ -59,12 +59,71 @@ word_counts <- texts %>%
 
 # Comparing word frequencies across texts
 
+plot_n_words <- 20  # you can change this as needed
 
+# Select the most frequent words overall
+word_comparison_tbl <- word_counts %>%
+  pivot_wider(
+    names_from = doc_title,
+    values_from = n,
+    values_fill = 0
+  ) %>%
+  mutate(max_n = pmax(`Text A`, `Text B`)) %>%
+  arrange(desc(max_n))
+
+word_plot_data <- word_comparison_tbl %>%
+  slice_head(n = plot_n_words) %>%
+  pivot_longer(
+    cols = c(`Text A`, `Text B`),
+    names_to = "doc_title",
+    values_to = "n"
+  ) %>%
+  mutate(word = fct_reorder(word, n, .fun = max))
+
+ggplot(word_plot_data, aes(x = n, y = word)) + #black magic happens thanks to ggplot
+  geom_col() +
+  facet_wrap(~ doc_title, scales = "free_x") +
+  labs(
+    title = "Most frequent words (stopwords removed)",
+    subtitle = paste0(
+      "Top ", plot_n_words,
+      " words by maximum frequency across both texts"
+    ),
+    x = "Word frequency",
+    y = NULL
+  ) +
+  theme_minimal()
 
 # Bigrams: starting to think about context
 
+bigrams <- texts %>%
+  unnest_tokens(bigram, text, token="ngrams", n=2)
+
+#separate to remove stopwords
+bigrams_separated <- bigrams %>%
+  separate(bigram, into=c("word1", "word2"), sep=" ")
+
+#remove all stopwords
+bigrams_filtered <- bigrams_separated %>%
+  filter(!word1 %in% all_stopwords$word,
+         !word2 %in% all_stopwords$word)
+
+bigram_counts <- bigrams_filtered %>% 
+  count(doc_title, word1, word2, sort = TRUE)
+
+#unite to put the bigrams back together
+bigram_counts <- bigram_counts %>%
+  unite(bigram, word1, word2, sep = " ")
+
 # Comparing bigrams
 
+bigram_relative <- bigram_counts %>% 
+  group_by(doc_title) %>%
+  mutate(
+    total_bigrams = sum(n),
+    proportion = n / total_bigrams) %>%
+  ungroup()
+  
 
 
 
