@@ -123,7 +123,24 @@ bigram_relative <- bigram_counts %>%
     total_bigrams = sum(n),
     proportion = n / total_bigrams) %>%
   ungroup()
-  
+
+bigram_wide <- bigram_relative %>%
+  select(doc_title, bigram, proportion) %>%
+  pivot_wider(
+    names_from = doc_title, 
+    values_from = proportion,
+    values_fill = 0
+  )
+
+#calculate differences
+
+bigram_diff <- bigram_wide %>%
+  mutate(
+    diff = `Text A` - `Text B` 
+  ) %>%
+  arrange(desc(abs(diff)))
+
+bigram_diff %>% slice(1:20)
 
 
 
