@@ -49,13 +49,47 @@ all_stopwords <- bind_rows(stop_words, custom_stopwords) %>%
 
 all_stopwords %>% slice(1:10)
 
+#creating diagnostics table
+#cols are doc_title, n_chars, n_word_tokens, n_word_types
+
+corpus_diagnostics <- texts %>%
+  mutate(n_chars = str_length(text)) %>%
+  unnest_tokens(word, text) %>%
+  mutate(word = str_to_lower(word)) %>%
+  group_by(doc_title) %>%
+  summarise(
+    n_chars = unique(n_chars),
+    n_word_tokens = n(),
+    n_word_types = n_distinct(word)
+  ) %>%
+  ungroup()
+
+corpus_diagnostics
+
+
 #calculating word counts
 
 word_counts <- texts %>%
   unnest_tokens(word, text) %>%
   mutate(word = str_to_lower(word)) %>%
   anti_join(all_stopwords, by = "word") %>%
-  count(doc_title, word, sort = TRUE)
+  count(doc_title, word, sort = TRUE) 
+
+# Compare normalized "trade" across the texts
+
+doc_lengths <- word_counts %>%
+  group_by(doc_title) %>%
+  summarise(total_words = sum(n)) 
+
+word_counts_normalized <- word_counts %>%
+  left_join(doc_lengths, by = "doc_title") %>%
+  mutate(relative_freq = n / total_words)
+
+trade_counts_normalized <- word_counts_normalized %>%
+  filter(word == "trade")
+
+
+
 
 # Comparing word frequencies across texts
 
@@ -70,6 +104,43 @@ word_comparison_tbl <- word_counts %>%
   ) %>%
   mutate(max_n = pmax(`Text A`, `Text B`)) %>%
   arrange(desc(max_n))
+
+#plotting relative frequencies 
+top20_words <- word_comparison_tbl %>% 
+  slice_head(n = plot_n_words) %>%
+  select(word)
+
+#filter data
+normalized_word_plot_data <- word_counts_normalized %>%
+  semi_join(top20_words, by ="word") %>%
+  mutate(word = fct_reorder(word, relative_freq, .fun=max))
+
+plot <- ggplot(normalized_word_plot_data, aes(x = relative_freq, y = word)) + 
+  geom_col() +
+  facet_wrap(~ doc_title, scales = "free_x") +
+  scale_x_continuous(limits = c(0, 0.04)) +
+  labs(
+    title = "Most frequent words (after normalization)",
+    subtitle = paste0(
+      "Top ", plot_n_words,
+      " words by relative frequency across both texts"
+    ),
+    x = "Relative word frequency",
+    y = NULL
+  ) +
+  theme_minimal()
+
+plot
+
+ggsave(
+  filename = file.path("Outputs", "normalized_word_plot.png"),
+  plot = plot,
+  width = 8,
+  height = 6,
+  dpi = 300
+)
+
+# original plot from example code
 
 word_plot_data <- word_comparison_tbl %>%
   slice_head(n = plot_n_words) %>%
